@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  coq:
+    build:
+      context: .  # Use the current directory for the Dockerfile
+      dockerfile: Dockerfile
+    working_dir: /workspace  # Change to /workspace for your mounted directory
+    volumes:
+      - .:/workspace  # Mounts the current directory to /workspace in the container
+    ports:
+      - "8080:8080"  # Optional: Expose a port if needed

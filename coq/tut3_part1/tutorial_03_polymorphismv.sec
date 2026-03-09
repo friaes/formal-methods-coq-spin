@@ -1,0 +1,296 @@
+Require Import Coq.Arith.PeanoNat.
+Require Import Nat.
+(** * Polymorphism *)
+
+(** ** FP - Polymorphic Types *)
+  (** https://softwarefoundations.cis.upenn.edu/lf-current/Poly.html#lab118 *)
+
+  (** Remember the type [[color]] we declared before and how the constructor
+  [[primary]] uses a parameter of type [[rgb]]? We used it to illustrate, that
+  types can be constructed using other types as building blocks. *)
+
+  Inductive rgb : Type := 
+    | red 
+    | green
+    | blue.
+
+  Inductive color : Type :=
+    | black
+    | white
+    | primary (p : rgb).
+  
+  (** It is also possible to construct types, without specifying the type of
+  their building blocks in advance. Such types are called polymorphic types.
+
+  Below you'll find such a polymorphic type called [[list]]. *)
+
+  Inductive list (X : Type) : Type :=
+    | nil
+    | cons (x : X) (l : list X).
+
+  (** Note that it takes a parameter on the left side of the colon named [[X]]
+  of type [[Type]]. Similar to [[nat]], it features two constructors [[nil]] and
+  [[cons]]. The difference lies in the fact that [[cons]] takes two parameters, one
+  being the type parameter [[X]] and one being another list [[l]]. 
+
+  The inductive definition of [[list]] reads like this: 
+  - [[nil]] is a list (base case - an empty list)
+  - [[cons]] followed by an element [[x]] of an arbitrary type [[X]], followed
+    by another list [[l]] of the same type [[X]] is a list.
+  *)
+
+  (** This definition allows us create lists of objects of various types ! (... 🤨)
+  We could for example create a list containing booleans (elements of type [[bool]])... *)
+
+  Check cons bool true (cons bool false (cons bool true (nil bool))). (* list bool *)
+
+  (** or a list containing natural numbers (elements of type [[nat]]) using the same inductive
+  definition ! *)
+
+  Check cons nat 1 (cons nat 2 (cons nat 3 (nil nat))). (* list nat *) 
+
+  (** (... 🫢) I agree, it doesn't look very nice with all those type arguments
+  after each element. So let's have Coq figure out the type using type-inference ! *)
+  
+  Check cons _ true (cons _ false (cons _ true (nil _))). (* list bool *)
+  Check cons _ 1 (cons _ 2 (cons _ 3 (nil _))). (* list nat *)
+
+  (** We can do even better with some magic. *)
+
+  Arguments nil {X}.
+  Arguments cons {X}.
+
+  Check cons true (cons false (cons true (nil))).
+
+  (** With the notation above we tell Coq to figure and fill out the type argument
+  by itself. In other words the type argument is now implicit. *)
+  
+  (** The commands below allow us to write even nicer lists. *)
+
+  Notation "x :: l" := (cons x l)
+                      (at level 60, right associativity).
+
+  Notation "[ ]" := nil.
+  Notation "[ x ; .. ; y ]" := (cons x .. (cons y nil) ..).
+
+  (** You don't have to use these commands yourself in this tutorial. Just know
+  (and appreciate), that lists can now be written down like this: *)
+
+  Check 1 :: 2 :: 3 :: nil.
+
+  Check []. (* an empty list*)
+
+  Check [true; true; false].
+  Check [1; 2; 3].
+
+
+  (** Besides lists, there are two other prominent examples for polymorphic types.
+  One being the option type the other being the product type. *)
+
+  (** The [[option]] type, is somewhat weird. It can be constructed either by a
+  simple [[None]] or a [[Some x]] where the type of [[x]] corresponds to the
+  argument [[X]].
+
+   We will see an example on how it can be used further down the line.*)
+
+  Module OptionPlayground.
+
+  Inductive option (X:Type) : Type :=
+    | Some (x : X)
+    | None.
+
+  Arguments Some {X}.
+  Arguments None {X}.
+
+  End OptionPlayground.
+
+  (** The type [[prod]] takes two different type-arguments [[X]] and [[Y]]. It
+  can be build by a single constructor [[pair]] that pairs two values of type 
+  [[X]] and [[Y]].*)
+
+  Inductive prod (X Y : Type) : Type :=
+    | pair (x : X) (y : Y).
+
+  Arguments pair {X} {Y}.
+
+  Notation "( x , y )" := (pair x y).
+  Notation "X * Y" := (prod X Y) : type_scope.
+
+  (** Note that (x,y) refers to the constructor [[pair]]. Therefore [[(x,y)]]
+  represents a value built from two values. [[X*Y]] refers to the type [[prod]]
+  so it represents a type built from two types. *)
+  
+  (** If [[x]] has type [[X]] and [[y]] has type [[Y]],
+      then [[(x,y)]] has type [[X*Y]]. *)
+
+(** ** FP - Polymorphic Functions - Functions that take types as arguments *)
+
+  (** The function [[app]] takes an (implicit) type [[X]] and two (polymorphic)
+  list [[l1]] [[l2]] (of the same Type [[list X]]) as arguments. It returns a longer
+  list with the second list appended to the first. *)
+
+  Fixpoint app {X : Type} (l1 l2 : list X) : list X :=
+    match l1 with
+    | nil => l2
+    | cons h t => cons h (app t l2)
+    end.
+
+  (** Note that thanks to polymorphism and the type parameter [[X : Type]], app works
+  on lists of any type. *)
+
+  Compute app [false; false] [true; true].
+
+  (** Let's add another magic notation for app. *)
+  Notation "l1 ++ l2":= (app l1 l2).
+
+  Compute [false; false] ++ [true; true].
+
+
+  (** [[rev]] reverts a list of any type [[X]]. *)
+
+  Fixpoint rev {X:Type} (l:list X) : list X :=
+    match l with
+    | nil    => nil
+    | h :: t => (rev t) ++ [h] 
+    end.
+
+  (** [[rev']] is an identical implementation of [[rev]] but without fancy notation: *)
+
+  Fixpoint rev' {X:Type} (l:list X) : list X :=
+    match l with
+    | nil => nil
+    | cons h t => app (rev' t) (cons h nil)
+    end.
+
+  Compute rev [true; false; false]. (* [false; false; true] *)
+
+  (** [[length]] computes the number of elements of a given list (of any type [[X]])
+  and returns it as type [[nat]]. *)
+
+  Fixpoint length {X : Type} (l : list X) : nat :=
+    match l with
+    | nil => 0
+    | cons _ l' => S (length l')
+    end.
+
+  Compute length [true; false; false]. (* 3 *)
+
+  (** The hd function returns , while . Since the empty list has no first element,
+  we have to pass a default value to be returned. *)
+
+  (** **** Exercise: (c_hd) *)
+  (** Define [[hd]] that returns the first element (the "head") of a list. If the
+  list is empty, return a default value. *)
+
+  Definition hd {X:Type} (default : X) (l : list X) : X :=
+    match l with
+    | nil => default
+    | h :: _ => h
+    end.
+   
+   Compute hd true [false; false; false].
+   Compute hd true [ ].
+
+  (** **** Exercise: (c_tl) *)
+  (** Define [[tl]] that returns everything but the first element (the "tail")
+  of a list*)
+
+  Definition tl {X:Type} (l : list X) : (list X) :=
+   match l with
+    | nil    => nil
+    | _ :: t => t 
+    end.
+   
+   Compute tl [true; false; false].
+
+  (** The method [[nth_error]] features the [[option type]] that we've defined before
+  and showcases a common way of error handling in functional programming. It takes an
+  implicit type argument [[{ X : Type}]] a list [[l]] of type [[list X]] and a natural
+  number [[n]] as arguments.
+  
+  Its job is to compute the [[n]]'th element of the list [[l]]. But instead of simply 
+  returning that element, it wraps this value into an object of type [[option X]].
+    
+  [[nth_error]] returns
+  - [[None]] if it can't compute the [[n]]'th element of the list
+    (for example because the length of the list is smaller than [[n]]).
+  - [[Some x]] of type [[X]] if it can successfully compute the [[n]]'th element
+    of the list.
+  *)
+
+  Fixpoint nth_error {X : Type} (l : list X) (n : nat)
+                    : option X :=
+    match l with
+    | nil => None
+    | a :: l' => match n with
+                | O => Some a
+                | S n' => nth_error l' n'
+                end
+    end.
+
+  Check nth_error [true; false; true] 1.    (* option bool *)
+  Compute nth_error [true; false; true] 1.  (* returns (Some false) *)
+
+  Check nth_error [true; false; true] 4.    (* option bool *)
+  Compute nth_error [true; false; true] 4.  (* returns (None) *)
+
+  (** **** Exercise: (q_nth_error) *)
+  (** Could the second match statement in [[nth_error]] also be replaced with
+  an [[if]] [[then]] [[else]] clause? If yes, show it by implementing an 
+  alternative [[nth_error']]. If no, argue why. *)
+
+  Fixpoint nth_error' {X : Type} (l : list X) (n : nat)
+                    : option X :=
+    match l with
+      | nil => None
+      | a :: l' => if (n =? O) then Some a else nth_error' l' (n - 1)
+    end.
+    
+  Check nth_error' [true; false; true] 1.    (* option bool *)
+  Compute nth_error' [false; false; true] 2.  (* returns (Some false) *)
+ 
+  (**
+    FILL IN HERE
+
+  *)
+
+  (** The function below pulls the [nat] out of a [natoption], returning
+      a supplied default in the [None] case. *)
+
+  Definition option_elim {X : Type} (x : X) (o : option X) : X :=
+    match o with
+    | Some n' => n'
+    | None => x
+    end.
+
+  (** **** Exercise: (c_hd_error) *)
+  (** Using the same idea, fix the [hd] function from earlier so we don't
+  have to pass a default element for the [nil] case.  *)
+
+  Definition hd_error {X : Type} (l : list X) : (option X) :=
+   match l with
+    | nil => None
+    | h :: _ => Some h
+   end.
+   
+   Compute hd_error [false; false; false].
+   Compute hd_error [ ].
+
+  (** Before we move on let's take a look at the last polymorphic type that
+  we've defined, namely the product type. Functions [[fst]] and [[snd]] showcase how
+  we can deal with the multi-type arguments. [[fst]] returns the first, [[snd]] the
+  second element of a pair. Note how the type of their return value matches the type of
+  the respective element they are returning. *)
+
+  Definition fst {X Y : Type} (p : X * Y) : X :=
+    match p with
+    | (x, y) => x
+    end.
+
+  Definition snd {X Y : Type} (p : X * Y) : Y :=
+    match p with
+    | (x, y) => y
+    end.
+
+  Compute fst (true, false). (* true *)
+  Compute snd (true, false). (* false *)

@@ -1,0 +1,291 @@
+(** * Recursion *)
+
+(** ** FP - Recursive Types *)
+(** {https://softwarefoundations.cis.upenn.edu/lf-current/Basics.html#lab32} *)
+
+  (** Enumerated types are a little bit boring in the sense, that its constructors
+  are just simple names and have no other "constructing-ability" outside that. *)
+
+  (** Let us define something that cannot be enumerated, something that is...
+  infinite 😮 like natural numbers. To do this we introduce a new concept called
+  "recursion". Recursion allows us to define something by referring to a (simpler)
+  part of itself. *)
+
+  Module NatPlayground.
+
+  Inductive nat : Type := 
+    | O
+    | S (n : nat).
+
+  (** Note that the parameter [[n]] of the constructor [[S]] takes a value of type
+  [[nat]], which is the exact type which we are defining. Yes, we are referring to
+  [[nat]] while defining [[nat]] 🤯. In other words, we are defining [[nat]]
+  recursively. This is what allows us to define infinite types like natural
+  numbers.
+
+  This inductive definition can therefore be read like this:
+  - O is a natural number and (we call this the base case, here it corresponds to a zero)
+  - everything that is constructed by an S followed by a natural number is also a
+    natural number (we call this the inductive step).
+
+  Agreed, this is a very simple definition of natural numbers. Nevertheless we
+  will see that it is very powerful.
+
+  *)
+
+  (** Now let us see how we can construct natural numbers, using the two
+  constructors O and S.
+  *)
+
+  Check O.
+  Check S O.
+
+  (** O and S O are of type nat as expected. *)
+
+  Fail Check O S. (* Remove the [[Fail]] to see the error. *)
+
+  (** Check O S fails because none our definitions allow such a construction. *)
+
+  End NatPlayground.
+
+  (** Recap:
+
+  - Constructors describe how elements of a given type [[T]] can be constructed.
+  - Everything that can be constructed using the constructor of type a [[T]] has type [[T]].
+  - Everything that can not be constructed like this is not of said type.
+  - Inductive definitions are often defined by a
+    -- Base case (simple constructor) and an 
+    -- Inductive step (by leveraging recursion on a parameter of its own type).
+  *)
+
+(** ** FP - Recursive Functions *)
+  Module NatPlayground2.
+  (** Let us define some properties about our type of natural numbers. The function
+  below computes the predecessor of a natural number. *)
+
+  Definition pred (n : nat) : nat :=
+  match n with
+  | O => O
+  | S n' => n'
+  end.
+
+  Check pred.
+  Check pred 0.
+  Check pred (S O).
+  Check pred 1.
+
+  Compute pred (S (S O)).
+
+  Compute pred (1+5).
+
+  (** Like with our functions on [[bool]] we match the parameter against the
+  constructors of our type [[nat]]. In the first case, where [[n]] is matched
+  against the constructor [[O]], the function returns [[O]]. So we're basically
+  stating that the predecessor of the natural number 0 is 0. In the second
+  case [[n]] is matched against something of the form [[S n']] (note [[n']] is not
+  the same as [[n]]) then the return value is [[n']].
+  *)
+
+  (** Here we define a function that takes an argument of type [[nat]] and has a
+  return value of type [[bool]]. *)
+
+  Definition is_zero (n : nat) : bool :=
+  match n with
+    | O     => true
+    | S n'  => false
+  end.
+
+  Check is_zero.
+  Check is_zero O.
+  Check is_zero 42.
+
+  Compute is_zero 0.
+  Compute is_zero 42.
+
+
+  Compute (is_zero (pred 0)).
+  Compute is_zero (pred 1).
+
+  (** Next we're going to declare some more interesting functions on natural
+  numbers.
+
+  We declare a function, that computes whether a given number [[n]] of type [[nat]] is even.
+  We want to compute even numbers recursively. Recursive functions are functions that
+  call themselves. To define recursive functions in Coq we use the keyword
+  [[Fixpoint]].
+  *)
+
+  Fixpoint even (n:nat) : bool :=
+  match n with 
+    | O        => true 
+    | S O      => false
+    | S (S n') => even n'
+  end.
+  
+  Compute even 3.
+  Compute even 22.
+
+  (** This declaration can be read like this:
+
+  Take the argument [[n]] and match it against the patterns below. In case you
+  match [[n]] to
+  - [[O]] then return [[true]],
+  - 1 then return [[false]],
+  - [[n' + 2]] then call the function [[even]] again to check wether [[n']] is an even number
+
+  Coq ensures that recursive functions that are declared with the [[Fixpoint]]
+  keyword terminate. For example, Coq won't accept the inverse declaration of the
+  last step ("in case you match [[n]] to [[n']] then check whether [[n' + 2]]) is
+  an even number"). 
+  *)
+
+  Fail Fixpoint infinite_even (n:nat) : bool := (* Remove [[Fail]] to see the error *)
+  match n with
+    | O        => true 
+    | S O      => false
+    | n'       => infinite_even (S ( S n'))
+  end. 
+
+  (** **** Exercise: (c_odd) *)
+  (** Define [[odd]] that checks whether a number [[n]] is odd. You do not need
+  [[Fixpoint]] for this exercise. *)
+
+  Definition odd (n:nat)  : bool :=
+  if even n then false else true.
+  
+  Compute odd 3.
+  Compute odd 22.
+
+  (** The recursive function [[plus]] takes two arguments of type [[nat]] (or as
+  we have learned one argument of type [[nat -> nat]] 😉) *)
+
+  Fixpoint plus (n : nat) (m : nat) : nat :=
+  match n with
+    | O => m
+    | S n' => S (plus n' m)
+  end.
+
+  Compute plus 2 5. (* 7 *)
+
+  (** Note that one can abbreviate [[(n : nat) (m : nat)]] with [[(n m : nat)]] as
+  illustrated by [[mult]] below. This works of course only when [[n]] and [[m]]
+  have the same type. *)
+
+  Fixpoint mult (n m : nat) : nat :=
+  match n with
+    | O => O
+    | S n' => plus m (mult n' m)
+  end.
+
+  Compute mult 2 5. (* 10 *)
+
+  (** You may also match against two parameters at the same time. As shown below
+  with [[minus]]. *)
+  Fixpoint minus (n m : nat) : nat :=
+  match n, m with
+    | O   , _     => O 
+    | S _ , O     => n 
+    | S n', S m'  => minus n' m'
+  end.
+
+  Compute minus 10 20. (* 0 *)
+  Compute minus 20 15. (* 5 *)
+
+  (** Again, we may want to write [[x + y]] instead of [[plus x y]] in some
+  situations, which is why we introduce the notations below. *)
+
+  Notation "x + y" := (plus x y) (at level 50, left associativity) : nat_scope. 
+  Notation "x - y" := (minus x y) (at level 50, left associativity) : nat_scope.
+  Notation "x * y" := (mult x y) (at level 40, left associativity) : nat_scope.
+
+  (** **** Exercise: (c_factorial) *)
+  (** Define a [[factorial]] that computes the factorial of a number [[n]]:
+  factorial(0)  =  1
+  factorial(n)  =  n * factorial(n-1)     (where n>0)
+  *)
+  Fixpoint factorial (n:nat)  : nat :=
+  match n with
+  | O => S O  (* 0! = 1 *)
+  | S n' => n * factorial n'
+  end.
+  
+  Compute factorial 3.
+
+  (** **** Exercise: (q_eqb_1) *)
+  (** Study the function declared below and describe in your own words what it does. *)
+
+  Fixpoint eqb (n m : nat) : bool :=
+  match n with
+    | O => match m with
+        | O => true
+        | S m' => false end
+    | S n' => match m with
+        | O => false
+        | S m' => eqb n' m' end
+  end.
+
+  (** 
+    eqb checks if two numbers are equal.
+    If both are 0, it returns true.
+    If only one is 0, it returns false.
+    If both are successors (S n' and S m'), check eqb n' m' recursively, just like the minus function 
+  *)
+
+  (** **** Exercise: (q_leb) *)
+  (** Study the function declared below and describe in your own words what it does. *)
+
+  Fixpoint leb (n m : nat) : bool :=
+  match n with
+    | O => true
+    | S n' => match m with
+      | O => false
+      | S m' => leb n' m' end
+  end.
+
+  (** 
+    leb checks if n is less than or equal to m (n =< m).
+    If n = 0, return true (because 0 is always =< any number).
+    If n != 0 but m = 0, return false (because a positive number cannot be =< 0).
+    If both n and m are successors (S n' and S m'), check leb n' m' recursively.
+  *)
+
+  (** **** Exercise: (q_eqb_2) *)
+  (** Check the functions behavior using the statements below. Describe in your own
+  words what you observe and whether it corresponds to your previous answer.
+  Please do not change your answer above. If you want to correct it, do so here. *)
+
+  Compute (eqb 4 5).
+  Compute (eqb 5 5).
+  Compute (eqb 6 5).
+
+  (** 
+    Yes, it corresponds to my previous answer.
+  *)
+
+
+  (** **** Exercise: (q_leb_2) *)
+  (** Check the functions behavior using the statements below. Describe in your own
+  words what you observe and whether it corresponds to your previous answer.
+  Please do not change your answer above. If you want to correct it, do so here. *)
+
+  Compute (leb 4 5).
+  Compute (leb 5 5).
+  Compute (leb 6 5).
+
+  (** 
+    Yes, it corresponds to my previous answer.
+  *)
+
+  (** Since now know what we're doing (note this does not mean that what we're
+  doing is correct). We can add some fancy notation. *)
+  Notation "x =? y" := (eqb x y) (at level 70) : nat_scope.
+  Notation "x <=? y" := (leb x y) (at level 70) : nat_scope.
+
+  Compute (4 =? 5).
+  Compute (5 =? 5).
+  Compute (6 =? 5).
+
+  Compute (4 <=? 5).
+  Compute (5 <=? 5).
+  Compute (6 <=? 5).
+  End NatPlayground2.

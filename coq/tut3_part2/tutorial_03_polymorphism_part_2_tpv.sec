@@ -1,0 +1,692 @@
+Require Import Coq.Arith.PeanoNat.
+Require Import Nat.
+(** * Polymorphism *)
+
+(** ** FP - Polymorphic Types *)
+  (** https://softwarefoundations.cis.upenn.edu/lf-current/Poly.html#lab118 *)
+
+  (** Remember the type [[color]] we declared before and how the constructor
+  [[primary]] uses a parameter of type [[rgb]]? We used it to illustrate, that
+  types can be constructed using other types as building blocks. *)
+
+  Inductive rgb : Type := 
+    | red 
+    | green
+    | blue.
+
+  Inductive color : Type :=
+    | black
+    | white
+    | primary (p : rgb).
+  
+  (** It is also possible to construct types, without specifying the type of
+  their building blocks in advance. Such types are called polymorphic types.
+
+  Below you'll find such a polymorphic type called [[list]]. *)
+
+  Inductive list (X : Type) : Type :=
+    | nil
+    | cons (x : X) (l : list X).
+
+  (** Note that it takes a parameter on the left side of the colon named [[X]]
+  of type [[Type]]. Similar to [[nat]], it features two constructors [[nil]] and
+  [[cons]]. The difference lies in the fact that [[cons]] takes two parameters, one
+  being the type parameter [[X]] and one being another list [[l]]. 
+
+  The inductive definition of [[list]] reads like this: 
+  - [[nil]] is a list (base case - an empty list)
+  - [[cons]] followed by an element [[x]] of an arbitrary type [[X]], followed
+    by another list [[l]] of the same type [[X]] is a list.
+  *)
+
+  (** This definition allows us create lists of objects of various types ! (... 🤨)
+  We could for example create a list containing booleans (elements of type [[bool]])... *)
+
+  Check cons bool true (cons bool false (cons bool true (nil bool))). (* list bool *)
+
+  (** or a list containing natural numbers (elements of type [[nat]]) using the same inductive
+  definition ! *)
+
+  Check cons nat 1 (cons nat 2 (cons nat 3 (nil nat))). (* list nat *) 
+
+  (** (... 🫢) I agree, it doesn't look very nice with all those type arguments
+  after each element. So let's have Coq figure out the type using type-inference ! *)
+  
+  Check cons _ true (cons _ false (cons _ true (nil _))). (* list bool *)
+  Check cons _ 1 (cons _ 2 (cons _ 3 (nil _))). (* list nat *)
+
+  (** We can do even better with some magic. *)
+
+  Arguments nil {X}.
+  Arguments cons {X}.
+
+  Check cons true (cons false (cons true (nil))).
+
+  (** With the notation above we tell Coq to figure and fill out the type argument
+  by itself. In other words the type argument is now implicit. *)
+  
+  (** The commands below allow us to write even nicer lists. *)
+
+  Notation "x :: l" := (cons x l)
+                      (at level 60, right associativity).
+
+  Notation "[ ]" := nil.
+  Notation "[ x ; .. ; y ]" := (cons x .. (cons y nil) ..).
+
+  (** You don't have to use these commands yourself in this tutorial. Just know
+  (and appreciate), that lists can now be written down like this: *)
+
+  Check 1 :: 2 :: 3 :: nil.
+
+  Check []. (* an empty list*)
+
+  Check [true; true; false].
+  Check [1; 2; 3].
+
+
+  (** Besides lists, there are two other prominent examples for polymorphic types.
+  One being the option type the other being the product type. *)
+
+  (** The [[option]] type, is somewhat weird. It can be constructed either by a
+  simple [[None]] or a [[Some x]] where the type of [[x]] corresponds to the
+  argument [[X]].
+
+   We will see an example on how it can be used further down the line.*)
+
+  Module OptionPlayground.
+
+  Inductive option (X:Type) : Type :=
+    | Some (x : X)
+    | None.
+
+  Arguments Some {X}.
+  Arguments None {X}.
+
+  End OptionPlayground.
+
+  (** The type [[prod]] takes two different type-arguments [[X]] and [[Y]]. It
+  can be build by a single constructor [[pair]] that pairs two values of type 
+  [[X]] and [[Y]].*)
+
+  Inductive prod (X Y : Type) : Type :=
+    | pair (x : X) (y : Y).
+
+  Arguments pair {X} {Y}.
+
+  Notation "( x , y )" := (pair x y).
+  Notation "X * Y" := (prod X Y) : type_scope.
+
+  (** Note that (x,y) refers to the constructor [[pair]]. Therefore [[(x,y)]]
+  represents a value built from two values. [[X*Y]] refers to the type [[prod]]
+  so it represents a type built from two types. *)
+  
+  (** If [[x]] has type [[X]] and [[y]] has type [[Y]],
+      then [[(x,y)]] has type [[X*Y]]. *)
+
+(** ** FP - Polymorphic Functions - Functions that take types as arguments *)
+
+  (** The function [[app]] takes an (implicit) type [[X]] and two (polymorphic)
+  list [[l1]] [[l2]] (of the same Type [[list X]]) as arguments. It returns a longer
+  list with the second list appended to the first. *)
+
+  Fixpoint app {X : Type} (l1 l2 : list X) : list X :=
+    match l1 with
+    | nil => l2
+    | cons h t => cons h (app t l2)
+    end.
+
+  (** Note that thanks to polymorphism and the type parameter [[X : Type]], app works
+  on lists of any type. *)
+
+  Compute app [false; false] [true; true].
+
+  (** Let's add another magic notation for app. *)
+  Notation "l1 ++ l2":= (app l1 l2).
+
+  Compute [false; false] ++ [true; true].
+
+
+  (** [[rev]] reverts a list of any type [[X]]. *)
+
+  Fixpoint rev {X:Type} (l:list X) : list X :=
+    match l with
+    | nil    => nil
+    | h :: t => (rev t) ++ [h] 
+    end.
+
+  (** [[rev']] is an identical implementation of [[rev]] but without fancy notation: *)
+
+  Fixpoint rev' {X:Type} (l:list X) : list X :=
+    match l with
+    | nil => nil
+    | cons h t => app (rev' t) (cons h nil)
+    end.
+
+  Compute rev [true; false; false]. (* [false; false; true] *)
+
+  (** [[length]] computes the number of elements of a given list (of any type [[X]])
+  and returns it as type [[nat]]. *)
+
+  Fixpoint length {X : Type} (l : list X) : nat :=
+    match l with
+    | nil => 0
+    | cons _ l' => S (length l')
+    end.
+
+  Compute length [true; false; false]. (* 3 *)
+
+  (** The hd function returns , while . Since the empty list has no first element,
+  we have to pass a default value to be returned. *)
+
+  (** **** Exercise: (c_hd) *)
+  (** Define [[hd]] that returns the first element (the "head") of a list. If the
+  list is empty, return a default value. *)
+
+  Definition hd {X:Type} (default : X) (l : list X) : X :=
+    match l with
+    | nil => default
+    | h :: _ => h
+    end.
+   
+   Compute hd true [false; false; false].
+   Compute hd true [ ].
+
+  (** **** Exercise: (c_tl) *)
+  (** Define [[tl]] that returns everything but the first element (the "tail")
+  of a list*)
+
+  Definition tl {X:Type} (l : list X) : (list X) :=
+   match l with
+    | nil    => nil
+    | _ :: t => t 
+    end.
+   
+   Compute tl [true; false; false].
+
+  (** The method [[nth_error]] features the [[option type]] that we've defined before
+  and showcases a common way of error handling in functional programming. It takes an
+  implicit type argument [[{ X : Type}]] a list [[l]] of type [[list X]] and a natural
+  number [[n]] as arguments.
+  
+  Its job is to compute the [[n]]'th element of the list [[l]]. But instead of simply 
+  returning that element, it wraps this value into an object of type [[option X]].
+    
+  [[nth_error]] returns
+  - [[None]] if it can't compute the [[n]]'th element of the list
+    (for example because the length of the list is smaller than [[n]]).
+  - [[Some x]] of type [[X]] if it can successfully compute the [[n]]'th element
+    of the list.
+  *)
+
+  Fixpoint nth_error {X : Type} (l : list X) (n : nat)
+                    : option X :=
+    match l with
+    | nil => None
+    | a :: l' => match n with
+                | O => Some a
+                | S n' => nth_error l' n'
+                end
+    end.
+
+  Check nth_error [true; false; true] 1.    (* option bool *)
+  Compute nth_error [true; false; true] 1.  (* returns (Some false) *)
+
+  Check nth_error [true; false; true] 4.    (* option bool *)
+  Compute nth_error [true; false; true] 4.  (* returns (None) *)
+
+  (** **** Exercise: (q_nth_error) *)
+  (** Could the second match statement in [[nth_error]] also be replaced with
+  an [[if]] [[then]] [[else]] clause? If yes, show it by implementing an 
+  alternative [[nth_error']]. If no, argue why. *)
+
+  Fixpoint nth_error' {X : Type} (l : list X) (n : nat)
+                    : option X :=
+    match l with
+      | nil => None
+      | a :: l' => if (n =? O) then Some a else nth_error' l' (n - 1)
+    end.
+    
+  Check nth_error' [true; false; true] 1.    (* option bool *)
+  Compute nth_error' [false; false; true] 2.  (* returns (Some false) *)
+ 
+  (**
+    FILL IN HERE
+
+  *)
+
+  (** The function below pulls the [nat] out of a [natoption], returning
+      a supplied default in the [None] case. *)
+
+  Definition option_elim {X : Type} (x : X) (o : option X) : X :=
+    match o with
+    | Some n' => n'
+    | None => x
+    end.
+
+  (** **** Exercise: (c_hd_error) *)
+  (** Using the same idea, fix the [hd] function from earlier so we don't
+  have to pass a default element for the [nil] case.  *)
+
+  Definition hd_error {X : Type} (l : list X) : (option X) :=
+   match l with
+    | nil => None
+    | h :: _ => Some h
+   end.
+   
+   Compute hd_error [false; false; false].
+   Compute hd_error [ ].
+
+  (** Before we move on let's take a look at the last polymorphic type that
+  we've defined, namely the product type. Functions [[fst]] and [[snd]] showcase how
+  we can deal with the multi-type arguments. [[fst]] returns the first, [[snd]] the
+  second element of a pair. Note how the type of their return value matches the type of
+  the respective element they are returning. *)
+
+  Definition fst {X Y : Type} (p : X * Y) : X :=
+    match p with
+    | (x, y) => x
+    end.
+
+  Definition snd {X Y : Type} (p : X * Y) : Y :=
+    match p with
+    | (x, y) => y
+    end.
+
+  Compute fst (true, false). (* true *)
+  Compute snd (true, false). (* false *)
+  
+  
+  
+  
+  (** ** TP - Proofs on Polymorphic Functions *)
+
+  (** Proofs about polymorphic types don't differ much from what we've seen before. *)
+ 
+  Theorem nil_app : forall (X : Type) (l : list X),
+    [] ++ l = l.
+  Proof. reflexivity. Qed.
+
+  (** Note, the function [[pred]] computes the predecessor of a natural
+  number [[nat]]. *)
+ 
+  Theorem tl_length_pred : forall (X : Type) (l : list X),
+  pred (length l) = length (tl l).
+  Proof.
+  intros X l. destruct l as [| n l'].
+  - (* l = nil *)
+    reflexivity.
+  - (* l = cons n l' *)
+    simpl.
+    reflexivity. Qed.
+
+  (** Like natural numbers, we can also use induction on other inductively defined
+  types like lists. Also here the first constructor [[nil]] (empty list) serves as
+  the base case and [[cons x l]] (list made of one element [[x]], followed by another
+  list [[l]]) is used for the inductive step. *)
+
+  (** Remember, [[ [] ]] is another way of writing [[nil]] and [[ x :: l]] is another
+  way of writing [[cons x l]]. *)
+
+  Theorem app_assoc : forall A (l m n:list A),
+    l ++ m ++ n = (l ++ m) ++ n.
+  Proof.
+    intros A l m n. induction l.
+      - simpl. reflexivity.
+      - simpl. rewrite IHl. reflexivity.
+  Qed.
+
+  (** Sometimes it is easier to prove something about the general case first, and use
+  that lemma for more specific results. This is illustrated in the following two proofs
+  about [[app]], [[rev]] and [[length]] *)
+
+  (** **** Exercise: (p_app_lenght) *) (** Prove the theorem below. *)
+  Lemma app_length : forall (X:Type) (l1 l2 : list X),
+    length (l1 ++ l2) = length l1 + length l2.
+  Proof.
+   intros. induction l1.
+     - simpl. reflexivity.
+     - simpl. rewrite IHl1. reflexivity.
+  Qed.
+
+  (** Study the proof below and observe how the more general [[app_lenght]]  is leveraged
+  to prove the more specific [[rev_length]].  *)
+
+  Theorem rev_length : forall (X : Type) (l : list X),
+    length (rev l) = length l.
+  Proof.
+    intros X l. induction l as [| n l' IHl'].
+    - (* l = nil *)
+      reflexivity.
+    - (* l = cons *)
+      simpl. rewrite -> app_length.
+      simpl. rewrite -> IHl'. rewrite Nat.add_comm.
+      reflexivity.
+  Qed.
+
+  (** Wait 😮, but where does the [[Nat.add_comm]] come from? It's from the standard
+  library module [[Nat]] and has been found using the [[Search]] command. *)
+
+  (** Coq's Search command is quite helpful with this. Let's say you've forgotten the name of a theorem about rev. The command Search rev will cause Coq to display a list of all theorems involving rev. *)
+
+  Search rev.
+
+  (** Or say you've forgotten the name of the theorem showing that plus is commutative. You can use a pattern to search for all theorems involving the equality of two additions. *)
+
+  Search (_ + _ = _ + _).
+
+  (** You'll see a lot of results there, nearly all of them from the standard library. To restrict the results, you can search inside a particular module: *)
+
+  Search (_ + _ = _ + _) inside Nat.
+
+  (** You can also make the search more precise by using variables in the search pattern instead of wildcards: *)
+
+  Search (?x + ?y = ?y + ?x).
+
+  (** More practice with lists. *)
+
+
+  (** **** Exercise: (p_app_nil_r) *) (** Prove the theorem below. *)
+  Theorem app_nil_r : forall (X : Type) (l : list X),
+    l ++ [] = l.
+  Proof.
+    intros. induction l.
+      - simpl. reflexivity.
+      - simpl. rewrite IHl. reflexivity.
+  Qed.
+      
+
+  (** **** Exercise: (p_rev_app_distr) *) (** Prove the theorem below. *)
+  Theorem rev_app_distr: forall (X : Type) (l1 l2 : list X),
+    rev (l1 ++ l2) = rev l2 ++ rev l1.
+  Proof.
+    intros. induction l1.
+      - simpl. rewrite app_nil_r. reflexivity.
+      - simpl. rewrite IHl1. rewrite app_assoc. reflexivity.
+  Qed.
+
+  (**  An involution is a function that is its own inverse. That is, applying the function twice yield the original input. *)
+
+  (** **** Exercise: (p_rev_involutive) *) (** Prove the theorem below. *)
+  Theorem rev_involutive : forall (X : Type) (l : list X),
+    rev (rev l) = l.
+  Proof.
+    intros. induction l.
+      - simpl. reflexivity.
+      - simpl. rewrite rev_app_distr. 
+        simpl. rewrite IHl. reflexivity.
+  Qed.
+
+  (** There is a short solution to the next one. If you find yourself getting
+  tangled up, step back and try to look for a simpler way. *)
+
+  Theorem app_assoc4 : forall (X : Type) (l1 l2 l3 l4 : list X),
+    l1 ++ (l2 ++ (l3 ++ l4)) = ((l1 ++ l2) ++ l3) ++ l4.
+  Proof.
+    intros. rewrite <- app_assoc. rewrite <- app_assoc. reflexivity.
+  Qed.
+   
+
+(** ** FP - Instantiating Polymorphic Functions - Exploring list nat *)
+
+  (** Recap: We've seen how to leverage polymorphism to define generic data types like
+  lists, options, products, and corresponding their functions like [[app]], [[rev]], 
+  [[length]], [[hd]], [[tl]], [[nth_error]], [[fst]] and [[snd]]. *)
+  
+  (** Now we can explore how to use these polymorphic functions in practice, starting
+  with a type alias for a list of natural numbers. *)
+
+  (** **** Exercise: (c_tl) *)
+  (** Define a type [[natlist]], that represents lists of natural numbers. *)
+
+  Definition natlist : Type := list nat.
+
+  Check natlist.
+
+  Definition mynatlist : natlist := [0; 1; 2; 3].
+
+  (** **** Exercise: (c_nonzeros) *)
+  (** Define [[nonzeros]] that removes all zeros from a list. *)
+
+  Fixpoint nonzeros (l:natlist) : natlist :=
+    match l with
+    | nil => nil
+    | O :: l' => nonzeros l'
+    | x :: l' => x :: (nonzeros l')
+    end.
+
+  Example test_nonzeros : nonzeros [0;1;0;2;3;0;0] = [1;2;3].
+    Proof. reflexivity. Qed.
+
+
+  (** **** Exercise: (c_oddmembers) *)
+  (** Define [[oddmembers]] that removes all even numbers from
+  a list *)
+
+  (** Hint 1: You may use functions that we explored in the previous chapter about
+  recursion *)
+
+  (** Hint 2: Remember conditionals ([[if]] [[then]] [[else]]) from the chapter
+  about pattern matching? They could also be useful. *)
+  
+  Fixpoint even (n:nat) : bool :=
+    match n with 
+      | O        => true 
+      | S O      => false
+      | S (S n') => even n'
+    end.
+  
+  Fixpoint oddmembers (l:natlist) : natlist :=
+    match l with
+    | nil => nil
+    | x :: l' => if even x then oddmembers l' else x :: oddmembers l'
+    end.
+
+  Example test_oddmembers:
+  oddmembers [0;1;0;2;3;0;0] = [1;3].
+    Proof. reflexivity. Qed. 
+
+  (** **** Exercise: (c_countoddmembers) *)
+  (** Define [[countoddmembers]] that counts the amount of odd numbers
+  in a list. *)
+
+  (** Hint: You can use existing definitions to implement this *)
+
+  Definition countoddmembers (l:natlist) : nat := length(oddmembers l).
+
+  Example test_countoddmembers1:
+  countoddmembers [1;0;3;1;4;5] = 4.
+    Proof. reflexivity. Qed.
+
+  Example test_countoddmembers2:
+  countoddmembers [0;2;4] = 0.
+    Proof. reflexivity. Qed.
+
+  Example test_countoddmembers3:
+  countoddmembers nil = 0.
+    Proof. reflexivity. Qed.
+
+  (** **** Exercise: (c_eqblist) *)
+  (**  Fill in the definition of eqblist, which compares lists of numbers for equality. *)
+  Fixpoint eqblist (l1 l2 : natlist) : bool :=
+    match l1 with
+    | nil => if length l2 then true else false
+    | x1 :: l1' => match l2 with
+                   | nil => false
+                   | x2 :: l2' => if x1 =? x2 then eqblist l1' l2' else false
+                   end
+    end.
+
+  Example test_eqblist1 :
+    (eqblist nil nil = true).
+    Proof. simpl. reflexivity. Qed.
+  Example test_eqblist2 :
+    eqblist [1;2;3] [1;2;3] = true.
+    Proof. reflexivity. Qed.
+  Example test_eqblist3 :
+    eqblist [1;2;3] [1;2;4] = false.
+    Proof. reflexivity. Qed.
+  Example test_eqblist4 :
+    (eqblist [1;2;3] nil = false).
+    Proof. simpl. reflexivity. Qed.
+  Example test_eqblist5 :
+    (eqblist nil [1;2;3] = false).
+    Proof. simpl. reflexivity. Qed.
+
+  (** Let's explore another use of our list type. *)
+  (** A bag (or multiset) is like a set, except that each element can appear multiple
+  times rather than just once. One way to represent a bag of numbers
+  is as a list. *)
+
+  Definition bag := natlist.
+
+  (** **** Exercise: (c_count) *)
+  (** Define [[count]] that returns how often a number [[v]] occurs in a 
+  bag [[s]]. *)
+  Fixpoint count (v : nat) (s : bag) : nat :=
+    match s with
+    | nil => O
+    | x :: s' => if x =? v then S (count v s') else count v s'
+    end.
+    
+
+  Example test_count1: count 1 [1;2;3;1;4;1] = 3.
+    Proof. reflexivity. Qed.
+  Example test_count2: count 6 [1;2;3;1;4;1] = 0.
+    Proof. reflexivity. Qed.
+
+  (** Multiset [[sum]] is similar to set union: sum a b contains all the elements of
+  a and of b. (Mathematicians usually define union on multisets a little bit
+  differently -- using max instead of sum -- which is why we don't call this
+  operation union. *)
+
+  (** **** Exercise: (c_sum) *)
+  (** Implement sum with an already-defined function without changing the header. *)
+
+  Definition sum : bag -> bag -> bag := fun s1 => fun s2 => s1 ++ s2.
+  
+  Example test_sum1: count 1 (sum [1;2;3] [1;4;1]) = 3.
+    Proof. reflexivity. Qed.
+
+  (** **** Exercise: (n_add) *)
+  (** Define [[add]] that adds an element [[v]] to a bag [[s]]. *)
+  Definition add (v : nat) (s : bag) : bag :=
+    sum [v] s.
+
+  Example test_add1: count 1 (add 1 [1;4;1]) = 3.
+    Proof. reflexivity. Qed.
+  Example test_add2: count 5 (add 1 [1;4;1]) = 0.
+    Proof. reflexivity. Qed.
+
+  (** **** Exercise: (c_member) *)
+  (** Define [[member]] that checks whether a given element [[v]] occurs in a bag
+  [[s]]. *)
+  Fixpoint member (v : nat) (s : bag) : bool :=
+    match s with
+    | nil => false
+    | x :: s' => if x =? v then true else member v s'
+    end.
+
+  Example test_member1: member 1 [1;4;1] = true.
+    Proof. reflexivity. Qed.
+  Example test_member2: member 2 [1;4;1] = false.
+    Proof. reflexivity. Qed.
+
+  (** **** Exercise:  (c_remove_one) *)
+  (** When remove_one is applied to a bag without the number to remove, it should
+  return the same bag unchanged (this exercise is optional). *)
+  Fixpoint remove_one (v : nat) (s : bag) : bag :=
+    match s with
+    | nil => nil
+    | x :: s' => if x =? v then s' else [x] ++ remove_one v s'
+    end.
+    
+    
+(** ** TP - Proofs on Instantiated Polymorphic Functions *)
+
+  (** Please note that the proofs below relate to the type of the specific contents of 
+  a list and, as such, depend on its particular instantiation. They cannot be proven 
+  universally for all lists. *)
+
+  (** **** Exercise: (p_nonzeros_app) *) (** Prove the theorem below. *)
+  Lemma nonzeros_app : forall l1 l2 : natlist,
+    nonzeros (l1 ++ l2) = (nonzeros l1) ++ (nonzeros l2).
+  Proof.
+    intros. induction l1.
+     - simpl. reflexivity.
+     - induction x.
+       + simpl. rewrite IHl1. reflexivity.
+       + simpl. rewrite IHl1. reflexivity.
+  Qed.
+
+  (** **** Exercise: (p_eqblist_refl) *) (** Prove the theorem below. *)
+
+  (** Hint: Use [[Search]] to find a fitting lemma when you stumble upon
+  something obvious that is not simplified by [[simpl]] or [[reflexivity]].*)
+
+  Search (_ =? _).
+  
+  Theorem eqblist_refl : forall (l : natlist),
+    true = eqblist l l.
+  Proof.
+    intros. induction l. 
+      - simpl. reflexivity.
+      - simpl. 
+        rewrite Nat.eqb_refl. 
+        rewrite <- IHl. reflexivity.
+  Qed.
+
+  (** Here are a couple of little theorems to prove about your definitions about bags above. *)
+
+  (** **** Exercise: (p_count_member_nonzero) *) (** Prove the theorem below. *)
+  Theorem count_member_nonzero : forall (s : bag),
+    1 <=? (count 1 (1 :: s)) = true.
+  Proof.
+    intros. simpl. reflexivity.
+  Qed.
+
+  (** The following lemma about leb might help you in the next exercise (it will also be useful in later chapters). *)
+
+  (** **** Exercise: (p_leb_n_Sn) *) (** Prove the theorem below. *)
+  Theorem leb_n_Sn : forall n,
+    n <=? (S n) = true.
+  Proof.
+    intros. induction n.
+      - simpl. reflexivity.
+      - simpl. rewrite IHn. reflexivity.
+  Qed.
+
+  (** **** Exercise: (p_add_inc_count) *) (** Prove the theorem below. *)
+  (** Adding a value to a bag should increase the value's count by one. State this as a theorem and prove it in Coq. *)
+
+  Theorem add_inc_count : forall n, forall (s : bag),
+    (count n s) <=? (count n (add n s)) = true.
+  Proof.
+    intros. simpl. 
+    rewrite Nat.eqb_refl. 
+    rewrite leb_n_Sn. 
+    reflexivity.
+  Qed.
+  
+ 
+  (** **** Exercise: (p_remove_does_not_increase_count) *)
+  (** Prove the theorem below (this exercise is optional). *)
+  Theorem remove_does_not_increase_count: forall (s : bag),
+    (count 0 (remove_one 0 s)) <=? (count 0 s) = true.
+  Proof.
+    intros. induction s.
+      - simpl. reflexivity.
+      - induction x.
+        + simpl. rewrite leb_n_Sn. reflexivity.
+        + simpl. rewrite IHs. reflexivity.
+  Qed.
+
+  (** **** Exercise: (p_option_elim_hd) *)
+  (** This exercise relates your new [hd_error] to the old [hd]. *)
+
+  Theorem option_elim_hd : forall (l:natlist) (default:nat),
+    hd default l = option_elim default (hd_error l).
+  Proof.
+    intros. induction l.
+      - simpl. reflexivity.
+      - simpl. reflexivity.
+  Qed.
